@@ -27,7 +27,7 @@ class CalendarEventResponse(CalendarEventBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class CalendarSyncRequest(BaseModel):
     calendar_type: str  # "google" or "outlook"

@@ -11,6 +11,8 @@ class User(Base):
     hashed_password = Column(String)
     full_name = Column(String)
     is_active = Column(Boolean, default=True)
+    points = Column(Integer, default=0)
+    badges = Column(JSON, default=[])
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -18,6 +20,19 @@ class User(Base):
     tasks = relationship("Task", back_populates="user")
     schedules = relationship("Schedule", back_populates="user")
     preferences = relationship("UserPreference", back_populates="user", uselist=False)
+    chat_history = relationship("ChatHistory", back_populates="user")
+
+class ChatHistory(Base):
+    __tablename__ = "chat_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    role = Column(String)  # user or assistant
+    content = Column(Text)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="chat_history")
 
 class Course(Base):
     __tablename__ = "courses"

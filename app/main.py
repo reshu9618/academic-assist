@@ -1,8 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import courses, calendar, schedule, progress, insights
+from app.api import courses, calendar, schedule, history
 from app.db.database import engine, Base
+from dotenv import load_dotenv
 import uvicorn
+import os
+
+# Load environment variables
+load_dotenv()
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -26,8 +31,7 @@ app.add_middleware(
 app.include_router(courses.router, prefix="/api", tags=["courses"])
 app.include_router(calendar.router, prefix="/api", tags=["calendar"])
 app.include_router(schedule.router, prefix="/api", tags=["schedule"])
-app.include_router(progress.router, prefix="/api", tags=["progress"])
-app.include_router(insights.router, prefix="/api", tags=["insights"])
+app.include_router(history.router, prefix="/api", tags=["history"])
 
 @app.get("/")
 async def root():

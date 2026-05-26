@@ -1,4 +1,17 @@
 import streamlit as st
+import sys
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Add project root to sys.path
+root_path = str(Path(__file__).parent)
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
 import pandas as pd
 import datetime
 import random
@@ -17,58 +30,69 @@ st.sidebar.subheader("Academic Planning Assistant")
 # Navigation options
 page = st.sidebar.radio("Navigation", ["Dashboard", "Smart Planner", "Analytics", "Chat Assistant", "Settings"])
 
-# Mock data for demonstration
-courses = [
-    {"id": 1, "name": "Introduction to Computer Science", "code": "CS101", "credits": 3, "difficulty": 3},
-    {"id": 2, "name": "Calculus I", "code": "MATH201", "credits": 4, "difficulty": 4},
-    {"id": 3, "name": "Introduction to Psychology", "code": "PSYCH101", "credits": 3, "difficulty": 2},
-    {"id": 4, "name": "English Composition", "code": "ENG101", "credits": 3, "difficulty": 2}
-]
+# Initialize session state for data persistence
+if "courses" not in st.session_state:
+    st.session_state.courses = []
 
-tasks = [
-    {"id": 1, "title": "CS101 Programming Assignment", "course_id": 1, "due_date": "2023-11-15", "priority": "High", "completed": False},
-    {"id": 2, "title": "MATH201 Problem Set 3", "course_id": 2, "due_date": "2023-11-10", "priority": "Medium", "completed": False},
-    {"id": 3, "title": "PSYCH101 Research Paper", "course_id": 3, "due_date": "2023-11-20", "priority": "High", "completed": False},
-    {"id": 4, "title": "ENG101 Essay Draft", "course_id": 4, "due_date": "2023-11-12", "priority": "Low", "completed": True}
-]
+if "tasks" not in st.session_state:
+    st.session_state.tasks = []
 
-# Generate mock schedule data
-def generate_schedule():
+if "schedule" not in st.session_state:
+    st.session_state.schedule = []
+
+# Data retrieval helpers
+def get_courses():
+    return st.session_state.courses
+
+def get_tasks():
+    return st.session_state.tasks
+
+# Generate mock schedule data based on tasks (simplified)
+def update_schedule_from_tasks():
     today = datetime.date.today()
-    schedule = []
+    new_schedule = []
     
-    for i in range(7):  # Next 7 days
-        day = today + datetime.timedelta(days=i)
-        day_name = day.strftime("%A")
-        
-        # Generate 2-4 study blocks per day
-        num_blocks = random.randint(2, 4)
-        for j in range(num_blocks):
-            start_hour = random.randint(9, 19)
-            duration = random.randint(1, 3)
-            course_id = random.choice([1, 2, 3, 4])
-            course_name = next(c["name"] for c in courses if c["id"] == course_id)
-            
-            schedule.append({
-                "day": day_name,
-                "date": day.strftime("%Y-%m-%d"),
-                "start_time": f"{start_hour}:00",
-                "end_time": f"{start_hour + duration}:00",
-                "course": course_name,
-                "activity": random.choice(["Reading", "Practice Problems", "Review Notes", "Assignment Work"])
-            })
+    courses = get_courses()
+    # For now, let's create a simple study block for each task
+    for task in st.session_state.tasks:
+        if not task.get("completed", False):
+            try:
+                due_date = datetime.datetime.strptime(task["due_date"], "%Y-%m-%d").date()
+                # Suggest a study block for today if the task is upcoming
+                if due_date >= today:
+                    day_name = today.strftime("%A")
+                    course_name = next((c["name"] for c in courses if c["id"] == task["course_id"]), "Study Session")
+                    
+                    new_schedule.append({
+                        "day": day_name,
+                        "date": today.strftime("%Y-%m-%d"),
+                        "start_time": "14:00",
+                        "end_time": "16:00",
+                        "course": course_name,
+                        "activity": f"Work on {task['title']}"
+                    })
+            except (ValueError, KeyError):
+                continue
     
-    return schedule
+    st.session_state.schedule = new_schedule
 
-schedule = generate_schedule()
+# Initial schedule update if empty
+if not st.session_state.schedule and st.session_state.tasks:
+    update_schedule_from_tasks()
 
-# Generate mock insights
-insights = [
-    {"title": "Study Efficiency", "description": "Your most productive study time is between 2PM-5PM", "score": 85},
-    {"title": "Assignment Completion", "description": "You complete 92% of assignments on time", "score": 92},
-    {"title": "Course Balance", "description": "CS101 needs more attention based on upcoming deadlines", "score": 65},
-    {"title": "Learning Progress", "description": "Consistent improvement in MATH201 performance", "score": 78}
-]
+schedule = st.session_state.schedule
+
+def get_insights():
+    if not st.session_state.tasks:
+        return []
+    
+    total = len(st.session_state.tasks)
+    completed = len([t for t in st.session_state.tasks if t.get("completed")])
+    
+    return [
+        {"title": "Task Progress", "description": f"You have completed {completed} out of {total} tasks.", "score": int((completed/total)*100) if total > 0 else 0},
+        {"title": "Study Tip", "description": "Break large tasks into smaller, manageable chunks for better focus.", "score": 100}
+    ]
 
 # Dashboard Page
 if page == "Dashboard":
@@ -81,26 +105,36 @@ if page == "Dashboard":
     # Key metrics
     col1, col2, col3, col4 = st.columns(4)
     
+    courses = get_courses()
+    tasks = get_tasks()
+    
     with col1:
-        st.metric(label="Courses", value="4")
+        st.metric(label="Courses", value=str(len(courses)))
     with col2:
-        st.metric(label="Upcoming Tasks", value="3")
+        st.metric(label="Upcoming Tasks", value=str(len([t for t in tasks if not t.get("completed")])))
     with col3:
-        st.metric(label="Study Hours This Week", value="24")
+        st.metric(label="Study Hours This Week", value="0")
     with col4:
-        st.metric(label="Average Course Progress", value="68%")
+        completion_rate = "0%"
+        if tasks:
+            completed = len([t for t in tasks if t.get("completed")])
+            completion_rate = f"{(completed / len(tasks)) * 100:.0f}%"
+        st.metric(label="Task Completion Rate", value=completion_rate)
     
     # Upcoming deadlines
     st.subheader("📅 Upcoming Deadlines")
-    upcoming_tasks = [task for task in tasks if not task["completed"]]
-    upcoming_df = pd.DataFrame(upcoming_tasks)
-    upcoming_df = upcoming_df[["title", "due_date", "priority"]]
-    st.dataframe(upcoming_df, use_container_width=True)
+    upcoming_tasks = [task for task in tasks if not task.get("completed")]
+    if upcoming_tasks:
+        upcoming_df = pd.DataFrame(upcoming_tasks)
+        upcoming_df = upcoming_df[["title", "due_date", "priority"]]
+        st.dataframe(upcoming_df, use_container_width=True)
+    else:
+        st.info("No upcoming deadlines. Take a break!")
     
     # Today's schedule
     st.subheader("📝 Today's Schedule")
     today = datetime.date.today().strftime("%Y-%m-%d")
-    today_schedule = [s for s in schedule if s["date"] == today]
+    today_schedule = [s for s in st.session_state.schedule if s["date"] == today]
     if today_schedule:
         today_df = pd.DataFrame(today_schedule)
         today_df = today_df[["start_time", "end_time", "course", "activity"]]
@@ -110,117 +144,226 @@ if page == "Dashboard":
     
     # Key insights
     st.subheader("💡 Key Insights")
-    insight_cols = st.columns(2)
-    for i, insight in enumerate(insights[:2]):
-        with insight_cols[i % 2]:
-            st.info(f"**{insight['title']}**: {insight['description']}")
+    insights_list = get_insights()
+    if insights_list:
+        insight_cols = st.columns(len(insights_list))
+        for i, insight in enumerate(insights_list):
+            with insight_cols[i]:
+                st.info(f"**{insight['title']}**: {insight['description']}")
+    else:
+        st.info("Add tasks to see insights!")
 
 # Smart Planner Page
 elif page == "Smart Planner":
     st.title("🧠 Smart Planner")
     
-    # Weekly schedule view
-    st.subheader("Weekly Schedule")
+    planner_tab1, planner_tab2 = st.tabs(["Weekly Schedule", "Task Management"])
     
-    # Group schedule by day
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    schedule_df = pd.DataFrame(schedule)
+    with planner_tab1:
+        # Weekly schedule view
+        st.subheader("Weekly Schedule")
+        
+        # Group schedule by day
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        
+        # Create tabs for each day
+        day_tabs = st.tabs(days)
+        
+        if st.session_state.schedule:
+            schedule_df = pd.DataFrame(st.session_state.schedule)
+            for i, day in enumerate(days):
+                with day_tabs[i]:
+                    day_schedule = schedule_df[schedule_df["day"] == day]
+                    if not day_schedule.empty:
+                        st.dataframe(day_schedule[["start_time", "end_time", "course", "activity"]], use_container_width=True)
+                    else:
+                        st.info(f"No study blocks scheduled for {day}.")
+        else:
+            for i, day in enumerate(days):
+                with day_tabs[i]:
+                    st.info(f"No study blocks scheduled for {day}.")
     
-    # Create tabs for each day
-    tabs = st.tabs(days)
-    
-    for i, day in enumerate(days):
-        with tabs[i]:
-            day_schedule = schedule_df[schedule_df["day"] == day]
-            if not day_schedule.empty:
-                st.dataframe(day_schedule[["start_time", "end_time", "course", "activity"]], use_container_width=True)
+    with planner_tab2:
+        # Task management
+        st.subheader("Task Management")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            tasks = get_tasks()
+            if tasks:
+                task_df = pd.DataFrame(tasks)
+                # Ensure due_date is in datetime format for the DateColumn to work correctly
+                if 'due_date' in task_df.columns:
+                    task_df['due_date'] = pd.to_datetime(task_df['due_date']).dt.date
+                
+                # Use data_editor to allow marking as completed
+                edited_df = st.data_editor(
+                    task_df, 
+                    use_container_width=True, 
+                    key="task_editor",
+                    column_config={
+                        "completed": st.column_config.CheckboxColumn("Completed"),
+                        "priority": st.column_config.SelectboxColumn("Priority", options=["Low", "Medium", "High"]),
+                        "due_date": st.column_config.DateColumn("Due Date")
+                    },
+                    disabled=["id"]
+                )
+                
+                # Update session state if changes are made
+                if not edited_df.equals(task_df):
+                    st.session_state.tasks = edited_df.to_dict('records')
+                    # Convert dates back to strings for consistency if necessary
+                    for t in st.session_state.tasks:
+                        if isinstance(t.get('due_date'), (datetime.date, datetime.datetime)):
+                            t['due_date'] = t['due_date'].isoformat()
+                    update_schedule_from_tasks()
+                    st.rerun()
             else:
-                st.info(f"No study blocks scheduled for {day}.")
-    
-    # Task management
-    st.subheader("Task Management")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        task_df = pd.DataFrame(tasks)
-        task_df["due_date"] = pd.to_datetime(task_df["due_date"])
-        task_df = task_df.sort_values("due_date")
+                st.info("No tasks added yet. Add your first task on the right!")
         
-        # Format for display
-        display_df = task_df[["title", "due_date", "priority", "completed"]]
-        display_df["due_date"] = display_df["due_date"].dt.strftime("%Y-%m-%d")
-        st.dataframe(display_df, use_container_width=True)
-    
-    with col2:
-        st.subheader("Add New Task")
-        task_title = st.text_input("Task Title")
-        course = st.selectbox("Course", [c["name"] for c in courses])
-        due_date = st.date_input("Due Date")
-        priority = st.select_slider("Priority", options=["Low", "Medium", "High"])
-        
-        if st.button("Add Task"):
-            st.success(f"Task '{task_title}' added successfully!")
+        with col2:
+            st.subheader("Add New Task")
+            with st.form("add_task_form", clear_on_submit=True):
+                task_title = st.text_input("Task Title")
+                courses = get_courses()
+                course_names = [c["name"] for c in courses]
+                if course_names:
+                    course = st.selectbox("Course", course_names)
+                else:
+                    st.warning("Add a course first!")
+                    course = None
+                
+                due_date = st.date_input("Due Date")
+                priority = st.select_slider("Priority", options=["Low", "Medium", "High"])
+                
+                if st.form_submit_button("Add Task"):
+                    if task_title and course:
+                        course_id = next((c["id"] for c in courses if c["name"] == course), 1)
+                        new_task = {
+                            "id": len(st.session_state.tasks) + 1,
+                            "title": task_title,
+                            "course_id": course_id,
+                            "due_date": due_date.strftime("%Y-%m-%d"),
+                            "priority": priority,
+                            "completed": False
+                        }
+                        st.session_state.tasks.append(new_task)
+                        update_schedule_from_tasks()
+                        st.success(f"Task '{task_title}' added!")
+                        st.rerun()
+                    elif not course:
+                        st.error("Please add a course first.")
+                    else:
+                        st.error("Please enter a task title.")
+            
+            st.divider()
+            st.subheader("Add New Course")
+            with st.form("add_course_form", clear_on_submit=True):
+                c_name = st.text_input("Course Name")
+                c_code = st.text_input("Course Code")
+                if st.form_submit_button("Add Course"):
+                    if c_name:
+                        new_c = {
+                            "id": len(st.session_state.courses) + 1,
+                            "name": c_name,
+                            "code": c_code,
+                        }
+                        st.session_state.courses.append(new_c)
+                        st.success(f"Course '{c_name}' added!")
+                        st.rerun()
 
 # Analytics Page
 elif page == "Analytics":
     st.title("📈 Analytics")
     
-    # Course performance
-    st.subheader("Course Performance")
+    courses = get_courses()
+    tasks = get_tasks()
     
-    # Mock performance data
-    performance_data = {
-        "Course": [c["name"] for c in courses],
-        "Current Grade": [random.randint(70, 95) for _ in courses],
-        "Completion": [random.randint(50, 100) for _ in courses]
-    }
-    
-    perf_df = pd.DataFrame(performance_data)
-    st.dataframe(perf_df, use_container_width=True)
-    
-    # Study time distribution
-    st.subheader("Study Time Distribution")
-    
-    study_data = {
-        "Course": [c["name"] for c in courses],
-        "Hours": [random.randint(5, 20) for _ in courses]
-    }
-    
-    st.bar_chart(pd.DataFrame(study_data).set_index("Course"))
-    
-    # Productivity insights
-    st.subheader("Productivity Insights")
-    
-    for insight in insights:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.info(f"**{insight['title']}**: {insight['description']}")
-        with col2:
-            st.progress(insight["score"] / 100)
+    if not courses and not tasks:
+        st.info("Add courses and tasks to see analytics!")
+    else:
+        # Course distribution
+        st.subheader("Task Distribution by Course")
+        if courses:
+            course_data = {
+                "Course": [c["name"] for c in courses],
+                "Tasks": [len([t for t in tasks if t.get("course_id") == c["id"]]) for c in courses]
+            }
+            df = pd.DataFrame(course_data)
+            if not df.empty and df["Tasks"].sum() > 0:
+                st.bar_chart(df.set_index("Course"))
+            else:
+                st.write("No tasks assigned to courses yet.")
+        else:
+            st.write("No courses added yet.")
+        
+        # Task status
+        st.subheader("Task Status")
+        if tasks:
+            completed = len([t for t in tasks if t.get("completed")])
+            total = len(tasks)
+            st.write(f"Completed: {completed} / {total}")
+            st.progress(completed / total if total > 0 else 0)
+        else:
+            st.write("No tasks added yet.")
 
 # Chat Assistant Page
 elif page == "Chat Assistant":
     st.title("💬 Chat Assistant")
     
+    from app.agent.agent_graph import run_chat_agent
+
     st.write("Ask EduFlow about your academic schedule, get help with planning, or request insights.")
     
-    # Simple chat interface
-    user_input = st.text_input("Type your message here...")
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Hi! I'm EduFlow, your academic planning assistant. How can I help you today?"}
+        ]
     
-    if st.button("Send"):
-        if user_input:
-            st.write("You: " + user_input)
+    # Add a Clear Chat button
+    if st.button("Clear Chat"):
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Chat history cleared! How can I help you today?"}
+        ]
+        st.rerun()
+
+    # Display chat history
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    # Chat input
+    if prompt := st.chat_input("Ask me about your schedule, study strategies, or time management..."):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Display user message
+        with st.chat_message("user"):
+            st.write(prompt)
             
-            # Mock responses based on keywords
-            if "schedule" in user_input.lower():
-                st.write("EduFlow: Here's your schedule for today. You have 3 study blocks planned, focusing on CS101 and MATH201.")
-            elif "deadline" in user_input.lower() or "due" in user_input.lower():
-                st.write("EduFlow: Your next deadline is the MATH201 Problem Set 3, due on November 10th. Would you like me to help you plan study time for this?")
-            elif "help" in user_input.lower() or "advice" in user_input.lower():
-                st.write("EduFlow: Based on your current progress, I recommend focusing more time on CS101 this week. You have an important assignment due soon, and your current understanding of the material could use reinforcement.")
-            else:
-                st.write("EduFlow: I'm here to help with your academic planning. You can ask me about your schedule, deadlines, or for study advice.")
+        # Generate assistant response using LangGraph agent
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    # Get context from session state
+                    courses = get_courses()
+                    tasks = get_tasks()
+                    
+                    # Run the chat agent
+                    response = run_chat_agent(
+                        messages=st.session_state.messages,
+                        courses=courses,
+                        tasks=tasks,
+                        schedule=st.session_state.schedule
+                    )
+                    st.write(response)
+                    # Add assistant response to chat history
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                except Exception as e:
+                    st.error(f"Error connecting to AI: {str(e)}")
+                    st.write("I'm having trouble connecting to my brain right now. Please check your OpenAI API key in the .env file.")
 
 # Settings Page
 elif page == "Settings":

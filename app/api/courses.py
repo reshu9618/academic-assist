@@ -28,7 +28,7 @@ class CourseResponse(CourseBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 @router.post("/courses/", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
 def create_course(course: CourseCreate, db: Session = Depends(get_db), user_id: int = 1):

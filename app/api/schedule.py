@@ -20,7 +20,7 @@ class ScheduleResponse(BaseModel):
     schedule_data: Dict[str, Any]
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 @router.post("/generate_schedule/", response_model=Dict[str, Any])
 def generate_schedule(request: ScheduleRequest, db: Session = Depends(get_db), user_id: int = 1):
