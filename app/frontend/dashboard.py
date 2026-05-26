@@ -27,7 +27,8 @@ from datetime import datetime, timedelta, date
 import json
 
 # API endpoint (change to your actual API URL when deployed)
-API_URL = "http://localhost:8000/api"
+# Use streamlit secrets if available, otherwise fallback to local
+API_URL = st.secrets.get("API_URL", os.getenv("API_URL", "http://localhost:8000/api"))
 
 # Data synchronization helpers
 def fetch_data(endpoint):
